@@ -5,7 +5,31 @@ from typing import Any, Dict, List, Optional
 from .utils import get_path
 
 
-SUBWAY_URL = "https://backoffice.subway.ch//api/gqlquery/v100/graphql"
+BACKOFFICES = {
+    "subway": {
+        "name": "Subway",
+        "graphql_url": "https://backoffice.subway.ch/api/gqlquery/v100/graphql",
+        "origin": "https://backoffice.subway.ch",
+        "referer": "https://backoffice.subway.ch/orders/returned-orders",
+    },
+    "ordermonkey": {
+        "name": "Ordermonkey",
+        "graphql_url": "https://cms.ordermonkey.com/api/gqlquery/v100/graphql",
+        "origin": "https://cms.ordermonkey.com",
+        "referer": "https://cms.ordermonkey.com",
+    },
+}
+
+
+def _failure_message(node: Dict[str, Any]) -> str:
+    message = node.get("ErrorMessage")
+    validation = node.get("ValidationResult")
+    details = {
+        "ErrorMessage": message,
+        "ValidationResult": validation,
+        "keys": list(node.keys()),
+    }
+    return "Backend returned Success=false. " + str(details)
 
 
 class RequestType:
@@ -21,6 +45,8 @@ class RequestType:
         branch_uuid: str,
         page_number: int,
         page_size: int,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
         request_config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         raise NotImplementedError
@@ -50,11 +76,17 @@ class RefundedProductsRequest(RequestType):
         branch_uuid: str,
         page_number: int,
         page_size: int,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
         request_config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        date_filter = ""
+        if start_date and end_date:
+            date_filter = f", 'CreateDate': {{ $gte: '{start_date}', $lte: '{end_date}' }}"
+
         query = (
             "query findData {\n"
-            "  PlOrders(Model: {PageNumber: %d, Filter: \"{ 'OrganizationId': '%s','BranchUUID': '%s', 'ReturnType': { $ne: null } }\", Sort: \"{CreateDate: -1}\", PageSize: %d}) {\n"
+            "  PlOrders(Model: {PageNumber: %d, Filter: \"{ 'OrganizationId': '%s','BranchUUID': '%s', 'ReturnType': { $ne: null }%s }\", Sort: \"{CreateDate: -1}\", PageSize: %d}) {\n"
             "    Data {\n"
             "      CreateDate\n"
             "      BranchUUID\n"
@@ -84,7 +116,7 @@ class RefundedProductsRequest(RequestType):
             "    TotalCount\n"
             "  }\n"
             "}\n"
-            % (page_number, org_id, branch_uuid, page_size)
+            % (page_number, org_id, branch_uuid, date_filter, page_size)
         )
 
         return {"operationName": "findData", "variables": {}, "query": query}
@@ -101,7 +133,7 @@ class RefundedProductsRequest(RequestType):
                 raise RuntimeError("Could not find PlOrders in response")
 
         if pl.get("Success") is False:
-            raise RuntimeError("Backend returned Success=false. " + str(pl.get("ErrorMessage")))
+            raise RuntimeError(_failure_message(pl))
 
         items = pl.get("Data") or []
         if not isinstance(items, list):
@@ -199,6 +231,8 @@ class AllOrdersRequest(RequestType):
         branch_uuid: str,
         page_number: int,
         page_size: int,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
         request_config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if not request_config:
@@ -214,6 +248,8 @@ class AllOrdersRequest(RequestType):
             "{{BRANCH_UUID}}": branch_uuid,
             "{{PAGE_NUMBER}}": str(page_number),
             "{{PAGE_SIZE}}": str(page_size),
+            "{{START_DATE}}": start_date or "",
+            "{{END_DATE}}": end_date or "",
         }
 
         def replace_all(value: str) -> str:
@@ -245,12 +281,34 @@ class AllOrdersRequest(RequestType):
         if not isinstance(payload, dict):
             raise RuntimeError("Response missing data object")
 
-        # Heuristic: pick the first list found under data
-        for value in payload.values():
-            if isinstance(value, dict) and isinstance(value.get("Data"), list):
-                return value.get("Data")
-            if isinstance(value, list):
-                return value
+        def find_items(node: Any) -> Optional[List[Dict[str, Any]]]:
+            if isinstance(node, dict):
+                if node.get("Success") is False:
+                    raise RuntimeError(_failure_message(node))
+
+                items = node.get("Data")
+                if isinstance(items, list):
+                    return items
+
+                for value in node.values():
+                    found = find_items(value)
+                    if found is not None:
+                        return found
+
+            if isinstance(node, list):
+                if node and all(isinstance(item, dict) for item in node):
+                    return node
+
+                for value in node:
+                    found = find_items(value)
+                    if found is not None:
+                        return found
+
+            return None
+
+        items = find_items(payload)
+        if items is not None:
+            return items
 
         raise RuntimeError("Could not locate list results in response")
 

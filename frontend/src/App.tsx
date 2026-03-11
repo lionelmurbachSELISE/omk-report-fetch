@@ -2,7 +2,29 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { postCsv, postJson } from "./utils/api";
 import { clearLocal, loadLocal, saveLocal } from "./utils/storage";
 
-const DEFAULT_ORG_ID = "420940c0-d894-4774-84e2-6398d71dd41c";
+const INTERNAL_MAX_PAGES = 200;
+const BACKOFFICE_OPTIONS = [
+  {
+    id: "subway",
+    name: "Subway",
+    orgId: "420940c0-d894-4774-84e2-6398d71dd41c",
+    origin: "https://backoffice.subway.ch",
+    referer: "https://backoffice.subway.ch/orders/all-orders",
+  },
+  {
+    id: "ordermonkey",
+    name: "Ordermonkey",
+    orgId: "837a3046-3a55-4754-a872-bbb35738fc32",
+    origin: "https://cms.ordermonkey.com",
+    referer: "https://cms.ordermonkey.com",
+  },
+] as const;
+type BackofficeId = (typeof BACKOFFICE_OPTIONS)[number]["id"];
+const DEFAULT_BACKOFFICE_ID: BackofficeId = "subway";
+
+function getBackofficeConfig(backofficeId: BackofficeId) {
+  return BACKOFFICE_OPTIONS.find((option) => option.id === backofficeId) ?? BACKOFFICE_OPTIONS[0];
+}
 
 const STORAGE_KEYS = {
   settings: "subway_settings",
@@ -40,7 +62,7 @@ type RunResponse = {
 };
 
 const ALL_ORDERS_QUERY_TEMPLATE = `query findData {
-  PlOrders(Model: {PageNumber: {{PAGE_NUMBER}}, Filter: "{ 'OrganizationId': '{{ORG_ID}}','BranchUUID': '{{BRANCH_UUID}}' }", Sort: "{CreateDate: -1}", PageSize: {{PAGE_SIZE}}}) {
+  PlOrders(Model: {PageNumber: {{PAGE_NUMBER}}, Filter: "{ 'OrganizationId': '{{ORG_ID}}','BranchUUID': '{{BRANCH_UUID}}', 'CreateDate': { '$lte': ISODate('{{END_DATE}}'), '$gte': ISODate('{{START_DATE}}') } }", Sort: "{CreateDate: -1}", PageSize: {{PAGE_SIZE}}}) {
     Data {
       ItemId
       CreateDate
@@ -110,6 +132,20 @@ const ALL_ORDERS_MAPPING_JSON = JSON.stringify(
 
 const ALL_ORDERS_CSV_SCHEMA =
   "ItemId,CreateDate,OrderNumber,ChannelOrderDisplayId,TotalAmount,SubTotal,DiscountAmount,TaxAmount,TipAmount,DeliveryCost,ServiceCharge,PaymentMethod,PaymentReferenceId,OrderStatus,OrderType,CustomerName,CustomerEmail,CustomerPhoneNumber,BranchUUID,FirstProductName,FirstProductId,FirstProductVariation,FirstProductUnitPrice,FirstProductQuantity";
+
+function formatDateInput(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function defaultDateRange(): { startDate: string; endDate: string } {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 7);
+  return {
+    startDate: formatDateInput(start),
+    endDate: formatDateInput(end),
+  };
+}
 
 const DEFAULT_REQUEST_TYPES: RequestTypeConfig[] = [
   {
@@ -206,11 +242,14 @@ function safeJsonParse(value: string): Record<string, unknown> | undefined {
 }
 
 function App() {
+  const defaults = defaultDateRange();
   const [cookie, setCookie] = useState("");
   const [saveCookie, setSaveCookie] = useState(false);
-  const [orgId, setOrgId] = useState(DEFAULT_ORG_ID);
+  const [backofficeId, setBackofficeId] = useState<BackofficeId>(DEFAULT_BACKOFFICE_ID);
+  const [orgId, setOrgId] = useState<string>(getBackofficeConfig(DEFAULT_BACKOFFICE_ID).orgId);
   const [pageSize, setPageSize] = useState(100);
-  const [maxPages, setMaxPages] = useState(50);
+  const [startDate, setStartDate] = useState(defaults.startDate);
+  const [endDate, setEndDate] = useState(defaults.endDate);
   const [sleepSeconds, setSleepSeconds] = useState(0.15);
   const [timeoutSeconds, setTimeoutSeconds] = useState(60);
   const [origin, setOrigin] = useState("");
@@ -242,9 +281,12 @@ function App() {
   useEffect(() => {
     const storedSettings = loadLocal(STORAGE_KEYS.settings, null as any);
     if (storedSettings) {
-      setOrgId(storedSettings.orgId ?? DEFAULT_ORG_ID);
+      const storedBackofficeId = (storedSettings.backofficeId ?? DEFAULT_BACKOFFICE_ID) as BackofficeId;
+      setBackofficeId(storedBackofficeId);
+      setOrgId(storedSettings.orgId ?? getBackofficeConfig(storedBackofficeId).orgId);
       setPageSize(storedSettings.pageSize ?? 100);
-      setMaxPages(storedSettings.maxPages ?? 50);
+      setStartDate(storedSettings.startDate ?? defaults.startDate);
+      setEndDate(storedSettings.endDate ?? defaults.endDate);
       setSleepSeconds(storedSettings.sleepSeconds ?? 0.15);
       setTimeoutSeconds(storedSettings.timeoutSeconds ?? 60);
       setOrigin(storedSettings.origin ?? "");
@@ -276,15 +318,17 @@ function App() {
 
   useEffect(() => {
     saveLocal(STORAGE_KEYS.settings, {
+      backofficeId,
       orgId,
       pageSize,
-      maxPages,
+      startDate,
+      endDate,
       sleepSeconds,
       timeoutSeconds,
       origin,
       referer,
     });
-  }, [orgId, pageSize, maxPages, sleepSeconds, timeoutSeconds, origin, referer]);
+  }, [backofficeId, orgId, pageSize, startDate, endDate, sleepSeconds, timeoutSeconds, origin, referer]);
 
   useEffect(() => {
     saveLocal(STORAGE_KEYS.branches, branches.map((b) => b.id));
@@ -376,6 +420,11 @@ function App() {
     setSingleBranch("");
   }
 
+  function handleBackofficeChange(nextBackofficeId: BackofficeId) {
+    setBackofficeId(nextBackofficeId);
+    setOrgId(getBackofficeConfig(nextBackofficeId).orgId);
+  }
+
   function removeBranch(id: string) {
     setBranches((prev) => prev.filter((b) => b.id !== id));
   }
@@ -394,6 +443,11 @@ function App() {
     try {
       const data = await postJson<{
         url?: string;
+        backofficeId?: BackofficeId;
+        orgId?: string;
+        branchUuids?: string[];
+        startDate?: string;
+        endDate?: string;
         headers?: Record<string, string>;
         cookie?: string;
         origin?: string;
@@ -403,6 +457,16 @@ function App() {
         rawJsonBody?: string;
       }>("/api/parse-curl", { curl: curlInput });
 
+      if (data.backofficeId) handleBackofficeChange(data.backofficeId);
+      if (data.orgId) setOrgId(data.orgId);
+      if (data.startDate) setStartDate(data.startDate.slice(0, 10));
+      if (data.endDate) setEndDate(data.endDate.slice(0, 10));
+      if (data.branchUuids && data.branchUuids.length) {
+        setBranches((prev) => {
+          const merged = uniquePreserveOrder([...prev.map((b) => b.id), ...data.branchUuids!]);
+          return merged.map((id) => ({ id, selected: true }));
+        });
+      }
       if (data.cookie) setCookie(data.cookie);
       if (data.origin) setOrigin(data.origin);
       if (data.referer) setReferer(data.referer);
@@ -432,10 +496,13 @@ function App() {
 
     return {
       cookie: cleanCookie,
+      backofficeId,
       orgId,
       branchUuids: selectedBranches,
+      startDate: startDate ? `${startDate}T00:00:00.000Z` : undefined,
+      endDate: endDate ? `${endDate}T23:59:59.999Z` : undefined,
       pageSize,
-      maxPages,
+      maxPages: INTERNAL_MAX_PAGES,
       sleepSeconds,
       timeoutSeconds,
       origin: origin || undefined,
@@ -520,6 +587,8 @@ function App() {
     abortRef.current?.abort();
   }
 
+  const selectedBackoffice = getBackofficeConfig(backofficeId);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -560,6 +629,12 @@ function App() {
 
           <h2>Global Settings</h2>
           <div className="grid">
+            <label>Backoffice</label>
+            <select value={backofficeId} onChange={(e) => handleBackofficeChange(e.target.value as BackofficeId)}>
+              {BACKOFFICE_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
             <label>Organization ID</label>
             <input value={orgId} onChange={(e) => setOrgId(e.target.value)} />
             <label>Page size</label>
@@ -568,12 +643,10 @@ function App() {
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
             />
-            <label>Max pages</label>
-            <input
-              type="number"
-              value={maxPages}
-              onChange={(e) => setMaxPages(Number(e.target.value))}
-            />
+            <label>Start date</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <label>End date</label>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             <label>Sleep between requests (s)</label>
             <input
               type="number"
@@ -588,9 +661,17 @@ function App() {
               onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
             />
             <label>Origin override</label>
-            <input value={origin} onChange={(e) => setOrigin(e.target.value)} />
+            <input
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+              placeholder={selectedBackoffice.origin}
+            />
             <label>Referer override</label>
-            <input value={referer} onChange={(e) => setReferer(e.target.value)} />
+            <input
+              value={referer}
+              onChange={(e) => setReferer(e.target.value)}
+              placeholder={selectedBackoffice.referer}
+            />
           </div>
 
           <h2>Branch Manager</h2>
@@ -686,7 +767,7 @@ function App() {
           <textarea
             value={selectedType.queryTemplate}
             onChange={(e) => updateRequestType({ queryTemplate: e.target.value })}
-            placeholder="Paste query template. Use {{BRANCH_UUID}}, {{PAGE_NUMBER}}, {{PAGE_SIZE}}, {{ORG_ID}}"
+            placeholder="Paste query template. Use {{BRANCH_UUID}}, {{PAGE_NUMBER}}, {{PAGE_SIZE}}, {{ORG_ID}}, {{START_DATE}}, {{END_DATE}}"
             rows={8}
           />
           <label>Variables JSON</label>

@@ -11,6 +11,11 @@ class ParseCurlRequest(BaseModel):
 
 class ParseCurlResponse(BaseModel):
     url: Optional[str] = None
+    backofficeId: Optional[str] = None
+    orgId: Optional[str] = None
+    branchUuids: List[str] = Field(default_factory=list)
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
     headers: Dict[str, str] = Field(default_factory=dict)
     cookie: Optional[str] = None
     origin: Optional[str] = None
@@ -32,8 +37,11 @@ class RequestTypeConfig(BaseModel):
 
 class RunRequest(BaseModel):
     cookie: str
+    backofficeId: str = "subway"
     orgId: Optional[str] = None
     branchUuids: List[str] = Field(default_factory=list)
+    startDate: Optional[str] = None
+    endDate: Optional[str] = None
     pageSize: int = 100
     maxPages: int = 50
     sleepSeconds: float = 0.15

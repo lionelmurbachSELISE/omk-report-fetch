@@ -2,6 +2,10 @@
 
 Local internal web app for querying Subway Backoffice GraphQL via a FastAPI proxy and exporting results to CSV.
 
+Supports multiple backoffice targets that share the same GraphQL request logic:
+- `Subway` via `https://backoffice.subway.ch/api/gqlquery/v100/graphql`
+- `Ordermonkey` via `https://cms.ordermonkey.com/api/gqlquery/v100/graphql`
+
 ## Structure
 
 - `backend/` FastAPI API proxy
@@ -38,6 +42,7 @@ Open `http://localhost:5173`.
 ## Core Notes
 
 - The browser **never** calls the Subway endpoint directly. All traffic goes through FastAPI.
+- Choose the target backoffice in the UI before running the request.
 - Cookie is not logged, and is only stored locally if you explicitly enable "Save cookie locally".
 - Curl parser is best-effort for Chrome “Copy as cURL”.
 - CSV export re-runs the request on the backend to generate a full CSV.
@@ -49,6 +54,8 @@ Open `http://localhost:5173`.
   - `{{BRANCH_UUID}}`
   - `{{PAGE_NUMBER}}`
   - `{{PAGE_SIZE}}`
+  - `{{START_DATE}}`
+  - `{{END_DATE}}`
 
 ## Adding a New Request Type
 

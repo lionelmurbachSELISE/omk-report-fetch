@@ -7,26 +7,29 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
 from .models import ProgressEvent, RunRequest
-from .request_types import REQUEST_TYPES, SUBWAY_URL, apply_mapping
+from .request_types import BACKOFFICES, REQUEST_TYPES, apply_mapping
 
 
-DEFAULT_HEADERS = {
+BASE_HEADERS = {
     "accept": "application/json, text/plain, */*",
     "accept-language": "en-GB,en-US;q=0.9,en;q=0.8,de;q=0.7",
     "content-type": "application/json",
-    "origin": "https://backoffice.subway.ch",
-    "referer": "https://backoffice.subway.ch/orders/returned-orders",
     "user-agent": "Mozilla/5.0",
 }
 
 
-def _build_headers(cookie: str, origin: Optional[str], referer: Optional[str]) -> Dict[str, str]:
-    headers = dict(DEFAULT_HEADERS)
+def _resolve_backoffice(backoffice_id: str) -> Dict[str, str]:
+    target = BACKOFFICES.get(backoffice_id)
+    if not target:
+        raise RuntimeError(f"Unknown backoffice: {backoffice_id}")
+    return target
+
+
+def _build_headers(cookie: str, origin: Optional[str], referer: Optional[str], backoffice: Dict[str, str]) -> Dict[str, str]:
+    headers = dict(BASE_HEADERS)
     headers["cookie"] = cookie
-    if origin:
-        headers["origin"] = origin
-    if referer:
-        headers["referer"] = referer
+    headers["origin"] = origin or backoffice["origin"]
+    headers["referer"] = referer or backoffice["referer"]
     return headers
 
 
@@ -72,7 +75,8 @@ def run_request(req: RunRequest) -> Tuple[List[Dict[str, Any]], List[str], List[
     if not request_type:
         raise RuntimeError(f"Unknown request type: {req.requestTypeId}")
 
-    headers = _build_headers(req.cookie, req.origin, req.referer)
+    backoffice = _resolve_backoffice(req.backofficeId)
+    headers = _build_headers(req.cookie, req.origin, req.referer, backoffice)
     timeout = httpx.Timeout(req.timeoutSeconds)
 
     all_rows: List[Dict[str, Any]] = []
@@ -94,9 +98,11 @@ def run_request(req: RunRequest) -> Tuple[List[Dict[str, Any]], List[str], List[
                         branch_uuid=branch,
                         page_number=page,
                         page_size=req.pageSize,
+                        start_date=req.startDate,
+                        end_date=req.endDate,
                         request_config=req.requestConfig.model_dump() if req.requestConfig else None,
                     )
-                    resp = client.post(SUBWAY_URL, headers=headers, json=payload)
+                    resp = client.post(backoffice["graphql_url"], headers=headers, json=payload)
                     data = _handle_response(resp)
                     items = request_type.parse_items(data)
 
