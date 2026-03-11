@@ -1,0 +1,11 @@
+{
+  "id": "refunded_products",
+  "name": "Refunded Products",
+  "queryTemplate": "",
+  "operationName": "findData",
+  "variablesJson": "{}",
+  "rawJsonBody": "",
+  "mappingJson": "{}",
+  "csvSchema": "BranchUUID,CreateDate,OrderNumber,ChannelOrderDisplayId,PaymentMethod,PaymentReferenceId,OrderStatus,OrderType,ProductName,ProductId,ProductVariationName,ProductVariationPrice,Quantity,RefundedAmount,RefundedReason,RefundedQuantity,RefundedTime,RefundedEmployeeId,RefundedManagerId",
+  "useCurl": false
+}
