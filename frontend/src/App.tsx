@@ -746,9 +746,9 @@ function App() {
       </section>
 
       <section className="panel">
-        <div className="row space-between">
+        <div className="row space-between results-toolbar">
           <h2>Results</h2>
-          <div className="row">
+          <div className="row results-actions">
             <button className="secondary" onClick={handleExportCsv} disabled={runLoading || !selectedBranches.length}>
               Export CSV
             </button>
@@ -762,37 +762,39 @@ function App() {
 
         {runResponse && runResponse.rows.length > 0 ? (
           <>
-            <table>
-              <thead>
-                <tr>
-                  {runResponse.columns.map((col) => (
-                    <th
-                      key={col}
-                      onClick={() => {
-                        if (sortKey === col) {
-                          setSortDir(sortDir === "asc" ? "desc" : "asc");
-                        } else {
-                          setSortKey(col);
-                          setSortDir("asc");
-                        }
-                      }}
-                    >
-                      {col}
-                      {sortKey === col ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pagedRows.map((row, idx) => (
-                  <tr key={idx}>
+            <div className="results-table-wrap">
+              <table className="results-table">
+                <thead>
+                  <tr>
                     {runResponse.columns.map((col) => (
-                      <td key={col}>{String(row[col] ?? "")}</td>
+                      <th
+                        key={col}
+                        onClick={() => {
+                          if (sortKey === col) {
+                            setSortDir(sortDir === "asc" ? "desc" : "asc");
+                          } else {
+                            setSortKey(col);
+                            setSortDir("asc");
+                          }
+                        }}
+                      >
+                        {col}
+                        {sortKey === col ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pagedRows.map((row, idx) => (
+                    <tr key={idx}>
+                      {runResponse.columns.map((col) => (
+                        <td key={col}>{String(row[col] ?? "")}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <div className="row space-between">
               <span className="muted">
                 Page {page} of {totalPages}
