@@ -1,6 +1,6 @@
 # Alifs Chora Request App
 
-Local internal web app for querying Subway Backoffice GraphQL via a FastAPI proxy and exporting results to CSV.
+Local internal web app for querying Subway and OM Backoffice GraphQL via a FastAPI proxy and exporting results to CSV.
 
 Supports multiple backoffice targets that share the same GraphQL request logic:
 - `Subway` via `https://backoffice.subway.ch/api/gqlquery/v100/graphql`
