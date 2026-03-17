@@ -45,6 +45,10 @@ type RequestTypeConfig = {
   operationName: string;
   variablesJson: string;
   rawJsonBody: string;
+  customUrl: string;
+  httpMethod: string;
+  headersJson: string;
+  responsePath: string;
   mappingJson: string;
   csvSchema: string;
   useCurl: boolean;
@@ -157,6 +161,10 @@ const DEFAULT_REQUEST_TYPES: RequestTypeConfig[] = [
     operationName: "findData",
     variablesJson: "{}",
     rawJsonBody: "",
+    customUrl: "",
+    httpMethod: "POST",
+    headersJson: "{}",
+    responsePath: "",
     mappingJson: "{}",
     csvSchema:
       "BranchUUID,CreateDate,OrderNumber,ChannelOrderDisplayId,PaymentMethod,PaymentReferenceId,OrderStatus,OrderType,ProductName,ProductId,ProductVariationName,ProductVariationPrice,Quantity,RefundedAmount,RefundedReason,RefundedQuantity,RefundedTime,RefundedEmployeeId,RefundedManagerId",
@@ -170,9 +178,29 @@ const DEFAULT_REQUEST_TYPES: RequestTypeConfig[] = [
     operationName: "findData",
     variablesJson: "{}",
     rawJsonBody: "",
+    customUrl: "",
+    httpMethod: "POST",
+    headersJson: "{}",
+    responsePath: "",
     mappingJson: ALL_ORDERS_MAPPING_JSON,
     csvSchema: ALL_ORDERS_CSV_SCHEMA,
     useCurl: false,
+  },
+  {
+    id: "custom_http",
+    name: "Custom HTTP / cURL",
+    description: "Call any JSON endpoint or pasted cURL and export the response to CSV.",
+    queryTemplate: "",
+    operationName: "",
+    variablesJson: "{}",
+    rawJsonBody: "",
+    customUrl: "",
+    httpMethod: "GET",
+    headersJson: "{}",
+    responsePath: "",
+    mappingJson: "{}",
+    csvSchema: "",
+    useCurl: true,
   },
 ];
 
@@ -199,6 +227,10 @@ function mergeRequestTypes(storedTypes: RequestTypeConfig[]): RequestTypeConfig[
       operationName: type.operationName || fallback.operationName,
       variablesJson: type.variablesJson || fallback.variablesJson,
       rawJsonBody: normalizedRawJsonBody || fallback.rawJsonBody,
+      customUrl: type.customUrl || fallback.customUrl,
+      httpMethod: type.httpMethod || fallback.httpMethod,
+      headersJson: type.headersJson || fallback.headersJson,
+      responsePath: type.responsePath || fallback.responsePath,
       mappingJson: type.mappingJson || fallback.mappingJson,
       csvSchema: type.csvSchema || fallback.csvSchema,
     };
@@ -352,12 +384,15 @@ function App() {
   }, [saveCookie, cookie]);
 
   const selectedType = requestTypes.find((t) => t.id === selectedRequestTypeId) ?? requestTypes[0];
+  const isCustomHttpType = selectedType?.id === "custom_http";
+  const requiresBranches = !isCustomHttpType;
 
   const filteredBranches = branches.filter((b) =>
     b.id.toLowerCase().includes(branchSearch.toLowerCase())
   );
 
   const selectedBranches = branches.filter((b) => b.selected).map((b) => b.id);
+  const canRun = !runLoading && (!requiresBranches || selectedBranches.length > 0);
 
   const mappedRows = useMemo(() => {
     if (!runResponse) return [] as Record<string, unknown>[];
@@ -396,6 +431,12 @@ function App() {
   function updateRequestType(update: Partial<RequestTypeConfig>) {
     setRequestTypes((prev) =>
       prev.map((t) => (t.id === selectedRequestTypeId ? { ...t, ...update } : t))
+    );
+  }
+
+  function updateRequestTypeById(requestTypeId: string, update: Partial<RequestTypeConfig>) {
+    setRequestTypes((prev) =>
+      prev.map((t) => (t.id === requestTypeId ? { ...t, ...update } : t))
     );
   }
 
@@ -443,6 +484,7 @@ function App() {
     try {
       const data = await postJson<{
         url?: string;
+        method?: string;
         backofficeId?: BackofficeId;
         orgId?: string;
         branchUuids?: string[];
@@ -456,8 +498,13 @@ function App() {
         query?: string;
         rawJsonBody?: string;
       }>("/api/parse-curl", { curl: curlInput });
+      const targetRequestTypeId = !data.backofficeId && data.url ? "custom_http" : selectedRequestTypeId;
+      const applyToTarget = (update: Partial<RequestTypeConfig>) =>
+        updateRequestTypeById(targetRequestTypeId, update);
 
       if (data.backofficeId) handleBackofficeChange(data.backofficeId);
+      if (data.url) applyToTarget({ customUrl: data.url });
+      if (data.method) applyToTarget({ httpMethod: data.method });
       if (data.orgId) setOrgId(data.orgId);
       if (data.startDate) setStartDate(data.startDate.slice(0, 10));
       if (data.endDate) setEndDate(data.endDate.slice(0, 10));
@@ -470,9 +517,20 @@ function App() {
       if (data.cookie) setCookie(data.cookie);
       if (data.origin) setOrigin(data.origin);
       if (data.referer) setReferer(data.referer);
-      if (data.operationName) updateRequestType({ operationName: data.operationName });
-      if (data.query) updateRequestType({ queryTemplate: data.query });
-      if (data.rawJsonBody) updateRequestType({ rawJsonBody: data.rawJsonBody, useCurl: true });
+      if (data.headers) {
+        const customHeaders = { ...data.headers };
+        delete customHeaders.cookie;
+        delete customHeaders.Cookie;
+        delete customHeaders.origin;
+        delete customHeaders.Origin;
+        delete customHeaders.referer;
+        delete customHeaders.Referer;
+        applyToTarget({ headersJson: JSON.stringify(customHeaders, null, 2) });
+      }
+      if (data.operationName) applyToTarget({ operationName: data.operationName });
+      if (data.query) applyToTarget({ queryTemplate: data.query });
+      if (data.rawJsonBody) applyToTarget({ rawJsonBody: data.rawJsonBody, useCurl: true });
+      if (data.url && !data.backofficeId) setSelectedRequestTypeId("custom_http");
     } catch (e: any) {
       setCurlError(e.message || "Failed to parse curl");
     }
@@ -489,6 +547,7 @@ function App() {
     })();
     const mapping = safeJsonParse(selectedType.mappingJson);
     const variables = safeJsonParse(selectedType.variablesJson);
+    const headers = safeJsonParse(selectedType.headersJson);
 
     const csvSchema = selectedType.csvSchema
       ? selectedType.csvSchema.split(",").map((v) => v.trim()).filter(Boolean)
@@ -512,7 +571,12 @@ function App() {
         queryTemplate: selectedType.queryTemplate || undefined,
         operationName: selectedType.operationName || undefined,
         variables: variables || undefined,
-        rawJsonBody: selectedType.useCurl ? selectedType.rawJsonBody || undefined : undefined,
+        rawJsonBody:
+          selectedType.useCurl || isCustomHttpType ? selectedType.rawJsonBody || undefined : undefined,
+        customUrl: isCustomHttpType ? selectedType.customUrl || undefined : undefined,
+        httpMethod: isCustomHttpType ? selectedType.httpMethod || undefined : undefined,
+        headers: headers as Record<string, string> | undefined,
+        responsePath: isCustomHttpType ? selectedType.responsePath || undefined : undefined,
         mapping: mapping || undefined,
         csvSchema: csvSchema || undefined,
         useCurl: selectedType.useCurl,
@@ -593,13 +657,13 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div>
-          <h1>Subway Backoffice Local App</h1>
+          <h1>Alifs Chora Request App</h1>
           <p>Query GraphQL via FastAPI proxy and export CSV.</p>
         </div>
         <div className="header-actions">
           <button className="secondary" onClick={clearResults}>Clear Results</button>
           <button className="secondary" onClick={cancelRun} disabled={!runLoading}>Cancel</button>
-          <button className="primary" onClick={handleRun} disabled={runLoading || !selectedBranches.length}>
+          <button className="primary" onClick={handleRun} disabled={!canRun}>
             {runLoading ? "Running..." : "Run"}
           </button>
         </div>
@@ -746,44 +810,88 @@ function App() {
             {curlError && <span className="error">{curlError}</span>}
           </div>
 
-          <div className="row space-between">
-            <h3>Request Template</h3>
-            <label className="checkbox">
+          {isCustomHttpType ? (
+            <>
+              <h3>Custom Request</h3>
+              <label>Request URL</label>
               <input
-                type="checkbox"
-                checked={selectedType.useCurl}
-                onChange={(e) => updateRequestType({ useCurl: e.target.checked })}
+                value={selectedType.customUrl}
+                onChange={(e) => updateRequestType({ customUrl: e.target.value })}
+                placeholder="https://example.com/api"
               />
-              Use raw JSON body from curl
-            </label>
-          </div>
-          <label>Operation name</label>
-          <input
-            value={selectedType.operationName}
-            onChange={(e) => updateRequestType({ operationName: e.target.value })}
-            placeholder="OperationName"
-          />
-          <label>GraphQL query template</label>
-          <textarea
-            value={selectedType.queryTemplate}
-            onChange={(e) => updateRequestType({ queryTemplate: e.target.value })}
-            placeholder="Paste query template. Use {{BRANCH_UUID}}, {{PAGE_NUMBER}}, {{PAGE_SIZE}}, {{ORG_ID}}, {{START_DATE}}, {{END_DATE}}"
-            rows={8}
-          />
-          <label>Variables JSON</label>
-          <textarea
-            value={selectedType.variablesJson}
-            onChange={(e) => updateRequestType({ variablesJson: e.target.value })}
-            placeholder='{"key": "value"}'
-            rows={3}
-          />
-          <label>Raw JSON body (curl)</label>
-          <textarea
-            value={selectedType.rawJsonBody}
-            onChange={(e) => updateRequestType({ rawJsonBody: e.target.value })}
-            placeholder='{"operationName": "...", "query": "...", "variables": {}}'
-            rows={4}
-          />
+              <label>HTTP method</label>
+              <input
+                value={selectedType.httpMethod}
+                onChange={(e) => updateRequestType({ httpMethod: e.target.value.toUpperCase() })}
+                placeholder="GET"
+              />
+              <label>Headers JSON</label>
+              <textarea
+                value={selectedType.headersJson}
+                onChange={(e) => updateRequestType({ headersJson: e.target.value })}
+                placeholder='{"Content-Type": "application/json"}'
+                rows={4}
+              />
+              <label>Raw JSON body</label>
+              <textarea
+                value={selectedType.rawJsonBody}
+                onChange={(e) => updateRequestType({ rawJsonBody: e.target.value })}
+                placeholder='{"query": "..."}'
+                rows={5}
+              />
+              <label>Response path (optional)</label>
+              <input
+                value={selectedType.responsePath}
+                onChange={(e) => updateRequestType({ responsePath: e.target.value })}
+                placeholder="data.items"
+              />
+              <div className="muted">
+                Supports placeholders like {"{{BRANCH_UUID}}"}, {"{{ORG_ID}}"}, {"{{START_DATE}}"}, and {"{{END_DATE}}"}.
+                Branches are optional in this mode.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="row space-between">
+                <h3>Request Template</h3>
+                <label className="checkbox">
+                  <input
+                    type="checkbox"
+                    checked={selectedType.useCurl}
+                    onChange={(e) => updateRequestType({ useCurl: e.target.checked })}
+                  />
+                  Use raw JSON body from curl
+                </label>
+              </div>
+              <label>Operation name</label>
+              <input
+                value={selectedType.operationName}
+                onChange={(e) => updateRequestType({ operationName: e.target.value })}
+                placeholder="OperationName"
+              />
+              <label>GraphQL query template</label>
+              <textarea
+                value={selectedType.queryTemplate}
+                onChange={(e) => updateRequestType({ queryTemplate: e.target.value })}
+                placeholder="Paste query template. Use {{BRANCH_UUID}}, {{PAGE_NUMBER}}, {{PAGE_SIZE}}, {{ORG_ID}}, {{START_DATE}}, {{END_DATE}}"
+                rows={8}
+              />
+              <label>Variables JSON</label>
+              <textarea
+                value={selectedType.variablesJson}
+                onChange={(e) => updateRequestType({ variablesJson: e.target.value })}
+                placeholder='{"key": "value"}'
+                rows={3}
+              />
+              <label>Raw JSON body (curl)</label>
+              <textarea
+                value={selectedType.rawJsonBody}
+                onChange={(e) => updateRequestType({ rawJsonBody: e.target.value })}
+                placeholder='{"operationName": "...", "query": "...", "variables": {}}'
+                rows={4}
+              />
+            </>
+          )}
 
           <h3>Field Mapping</h3>
           <label>Mapping JSON (column {"->"} path)</label>
@@ -830,7 +938,7 @@ function App() {
         <div className="row space-between results-toolbar">
           <h2>Results</h2>
           <div className="row results-actions">
-            <button className="secondary" onClick={handleExportCsv} disabled={runLoading || !selectedBranches.length}>
+            <button className="secondary" onClick={handleExportCsv} disabled={!canRun}>
               Export CSV
             </button>
             <input

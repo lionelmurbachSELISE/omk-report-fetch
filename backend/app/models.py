@@ -11,6 +11,7 @@ class ParseCurlRequest(BaseModel):
 
 class ParseCurlResponse(BaseModel):
     url: Optional[str] = None
+    method: Optional[str] = None
     backofficeId: Optional[str] = None
     orgId: Optional[str] = None
     branchUuids: List[str] = Field(default_factory=list)
@@ -30,6 +31,10 @@ class RequestTypeConfig(BaseModel):
     operationName: Optional[str] = None
     variables: Optional[Dict[str, Any]] = None
     rawJsonBody: Optional[str] = None
+    customUrl: Optional[str] = None
+    httpMethod: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
+    responsePath: Optional[str] = None
     mapping: Optional[Dict[str, str]] = None
     csvSchema: Optional[List[str]] = None
     useCurl: bool = False

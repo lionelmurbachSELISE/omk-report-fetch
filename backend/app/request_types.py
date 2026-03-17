@@ -60,6 +60,9 @@ class RequestType:
     def csv_schema(self) -> List[str]:
         return []
 
+    def supports_pagination(self) -> bool:
+        return True
+
 
 class RefundedProductsRequest(RequestType):
     def __init__(self) -> None:
@@ -319,13 +322,94 @@ class AllOrdersRequest(RequestType):
         return []
 
 
+class CustomHttpRequest(RequestType):
+    def __init__(self) -> None:
+        super().__init__(
+            type_id="custom_http",
+            name="Custom HTTP / cURL",
+            description="Run an arbitrary JSON HTTP request and export the result to CSV.",
+        )
+
+    def build_payload(
+        self,
+        *,
+        org_id: str,
+        branch_uuid: str,
+        page_number: int,
+        page_size: int,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        request_config: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        if not request_config:
+            raise RuntimeError("Missing request config for custom request")
+
+        custom_url = request_config.get("customUrl")
+        if not custom_url:
+            raise RuntimeError("Custom URL is required")
+
+        raw_json_body = request_config.get("rawJsonBody")
+        headers = request_config.get("headers") or {}
+        if headers and not isinstance(headers, dict):
+            raise RuntimeError("Headers must be a JSON object")
+
+        replacements = {
+            "{{ORG_ID}}": org_id,
+            "{{BRANCH_UUID}}": branch_uuid,
+            "{{PAGE_NUMBER}}": str(page_number),
+            "{{PAGE_SIZE}}": str(page_size),
+            "{{START_DATE}}": start_date or "",
+            "{{END_DATE}}": end_date or "",
+        }
+
+        def replace_all(value: str) -> str:
+            out = value
+            for k, v in replacements.items():
+                out = out.replace(k, v)
+            return out
+
+        parsed_headers = {str(k): replace_all(str(v)) for k, v in headers.items()}
+        payload: Dict[str, Any] = {
+            "url": replace_all(str(custom_url)),
+            "method": str(request_config.get("httpMethod") or "GET").upper(),
+            "headers": parsed_headers,
+        }
+        if raw_json_body:
+            payload["json"] = _safe_json_value_load(replace_all(raw_json_body))
+        return payload
+
+    def parse_items(self, data: Any, response_path: Optional[str] = None) -> List[Dict[str, Any]]:
+        target = get_path(data, response_path) if response_path else data
+
+        if isinstance(target, list):
+            return [item if isinstance(item, dict) else {"value": item} for item in target]
+
+        if isinstance(target, dict):
+            first_list = _find_first_list(target)
+            if first_list is not None:
+                return [item if isinstance(item, dict) else {"value": item} for item in first_list]
+            return [_flatten_value(target)]
+
+        return [{"value": target}]
+
+    def transform_rows(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [_flatten_value(item) for item in items]
+
+    def csv_schema(self) -> List[str]:
+        return []
+
+    def supports_pagination(self) -> bool:
+        return False
+
+
 REQUEST_TYPES: Dict[str, RequestType] = {
     "refunded_products": RefundedProductsRequest(),
     "all_orders": AllOrdersRequest(),
+    "custom_http": CustomHttpRequest(),
 }
 
 
-def _safe_json_load(body: str) -> Dict[str, Any]:
+def _safe_json_value_load(body: str) -> Any:
     import json
 
     try:
@@ -333,10 +417,47 @@ def _safe_json_load(body: str) -> Dict[str, Any]:
     except Exception as e:
         raise RuntimeError("Invalid JSON body in curl template") from e
 
+    return data
+
+
+def _safe_json_load(body: str) -> Dict[str, Any]:
+    data = _safe_json_value_load(body)
+
     if not isinstance(data, dict):
         raise RuntimeError("Curl JSON body must be an object")
 
     return data
+
+
+def _find_first_list(data: Any) -> Optional[List[Any]]:
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for value in data.values():
+            found = _find_first_list(value)
+            if found is not None:
+                return found
+    return None
+
+
+def _flatten_value(value: Any, prefix: str = "") -> Dict[str, Any]:
+    if isinstance(value, dict):
+        row: Dict[str, Any] = {}
+        for key, item in value.items():
+            child_prefix = f"{prefix}.{key}" if prefix else str(key)
+            row.update(_flatten_value(item, child_prefix))
+        return row
+
+    if isinstance(value, list):
+        row: Dict[str, Any] = {}
+        for idx, item in enumerate(value):
+            child_prefix = f"{prefix}[{idx}]" if prefix else f"[{idx}]"
+            row.update(_flatten_value(item, child_prefix))
+        if row:
+            return row
+
+    column = prefix or "value"
+    return {column: value}
 
 
 def apply_mapping(items: List[Dict[str, Any]], mapping: Dict[str, str]) -> List[Dict[str, Any]]:

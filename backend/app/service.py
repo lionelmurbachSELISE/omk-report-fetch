@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -33,7 +32,7 @@ def _build_headers(cookie: str, origin: Optional[str], referer: Optional[str], b
     return headers
 
 
-def _handle_response(resp: httpx.Response) -> Dict[str, Any]:
+def _handle_response(resp: httpx.Response) -> Any:
     if resp.status_code in (401, 403):
         snippet = resp.text[:800] if resp.text else ""
         raise RuntimeError(
@@ -62,10 +61,7 @@ def _handle_response(resp: httpx.Response) -> Dict[str, Any]:
         ) from e
 
     if isinstance(data, dict) and data.get("errors"):
-        raise RuntimeError("GraphQL errors: " + json.dumps(data.get("errors")))
-
-    if not isinstance(data, dict):
-        raise RuntimeError("Response JSON is not an object")
+        raise RuntimeError("GraphQL errors: " + str(data.get("errors")))
 
     return data
 
@@ -75,9 +71,9 @@ def run_request(req: RunRequest) -> Tuple[List[Dict[str, Any]], List[str], List[
     if not request_type:
         raise RuntimeError(f"Unknown request type: {req.requestTypeId}")
 
-    backoffice = _resolve_backoffice(req.backofficeId)
-    headers = _build_headers(req.cookie, req.origin, req.referer, backoffice)
     timeout = httpx.Timeout(req.timeoutSeconds)
+    backoffice = _resolve_backoffice(req.backofficeId) if req.requestTypeId != "custom_http" else None
+    headers = _build_headers(req.cookie, req.origin, req.referer, backoffice) if backoffice else {}
 
     all_rows: List[Dict[str, Any]] = []
     errors: List[str] = []
@@ -85,13 +81,15 @@ def run_request(req: RunRequest) -> Tuple[List[Dict[str, Any]], List[str], List[
     raw_sample: List[Dict[str, Any]] = []
 
     branches = req.branchUuids
-    if not branches:
+    if not branches and request_type.supports_pagination():
         return [], request_type.csv_schema(), errors, events, raw_sample
+    effective_branches = branches if branches else [""]
 
     with httpx.Client(timeout=timeout) as client:
-        for branch in branches:
+        for branch in effective_branches:
             branch_ok = True
-            for page in range(1, req.maxPages + 1):
+            max_pages = req.maxPages if request_type.supports_pagination() else 1
+            for page in range(1, max_pages + 1):
                 try:
                     payload = request_type.build_payload(
                         org_id=req.orgId or "",
@@ -102,9 +100,35 @@ def run_request(req: RunRequest) -> Tuple[List[Dict[str, Any]], List[str], List[
                         end_date=req.endDate,
                         request_config=req.requestConfig.model_dump() if req.requestConfig else None,
                     )
-                    resp = client.post(backoffice["graphql_url"], headers=headers, json=payload)
+                    if req.requestTypeId == "custom_http":
+                        request_headers = dict(headers)
+                        request_headers.update(payload.get("headers") or {})
+                        request_headers.setdefault("accept", "application/json, text/plain, */*")
+                        request_headers.setdefault("user-agent", "Mozilla/5.0")
+                        if req.cookie:
+                            request_headers.setdefault("cookie", req.cookie)
+                        if req.origin:
+                            request_headers.setdefault("origin", req.origin)
+                        if req.referer:
+                            request_headers.setdefault("referer", req.referer)
+
+                        method = payload.get("method") or "GET"
+                        url = payload.get("url")
+                        if not url:
+                            raise RuntimeError("Custom URL is required")
+                        request_kwargs: Dict[str, Any] = {"headers": request_headers}
+                        if "json" in payload:
+                            request_kwargs["json"] = payload["json"]
+                        resp = client.request(method, url, **request_kwargs)
+                    else:
+                        assert backoffice is not None
+                        resp = client.post(backoffice["graphql_url"], headers=headers, json=payload)
                     data = _handle_response(resp)
-                    items = request_type.parse_items(data)
+                    if req.requestTypeId == "custom_http":
+                        response_path = req.requestConfig.responsePath if req.requestConfig else None
+                        items = request_type.parse_items(data, response_path=response_path)
+                    else:
+                        items = request_type.parse_items(data)
 
                     if req.requestTypeId == "all_orders":
                         if len(raw_sample) < req.previewLimit:
@@ -117,17 +141,18 @@ def run_request(req: RunRequest) -> Tuple[List[Dict[str, Any]], List[str], List[
 
                     all_rows.extend(rows)
 
-                    events.append(ProgressEvent(branch=branch, page=page, status="ok"))
+                    events.append(ProgressEvent(branch=branch or "(single)", page=page, status="ok"))
 
-                    if len(items) < req.pageSize:
+                    if not request_type.supports_pagination() or len(items) < req.pageSize:
                         break
 
                     time.sleep(req.sleepSeconds)
                 except Exception as e:
                     branch_ok = False
-                    msg = f"branch={branch}, page={page}, error={e}"
+                    label = branch or "(single)"
+                    msg = f"branch={label}, page={page}, error={e}"
                     errors.append(msg)
-                    events.append(ProgressEvent(branch=branch, page=page, status="error", message=str(e)))
+                    events.append(ProgressEvent(branch=label, page=page, status="error", message=str(e)))
                     break
             if not branch_ok:
                 continue

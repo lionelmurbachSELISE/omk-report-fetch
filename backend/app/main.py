@@ -9,7 +9,7 @@ from .curl_parser import parse_curl
 from .models import ParseCurlRequest, ParseCurlResponse, RunRequest, RunResponse
 from .service import run_request
 
-app = FastAPI(title="Subway Backoffice Local App")
+app = FastAPI(title="Alifs Chora Request App")
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,13 +38,14 @@ async def parse_curl_endpoint(req: ParseCurlRequest) -> ParseCurlResponse:
 async def run_endpoint(req: RunRequest) -> RunResponse:
     try:
         rows, columns, errors, events, raw_sample = run_request(req)
+        total_targets = len(req.branchUuids) if req.branchUuids else (1 if req.requestTypeId == "custom_http" else 0)
         preview = rows[: req.previewLimit]
         return RunResponse(
             columns=columns,
             rows=preview,
             totalRows=len(rows),
-            totalBranches=len(req.branchUuids),
-            branchesCompleted=len(req.branchUuids) - len({e.branch for e in events if e.status == "error"}),
+            totalBranches=total_targets,
+            branchesCompleted=total_targets - len({e.branch for e in events if e.status == "error"}),
             errors=errors,
             events=events,
             rawSample=raw_sample if raw_sample else None,

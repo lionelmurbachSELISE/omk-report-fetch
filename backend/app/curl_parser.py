@@ -9,6 +9,7 @@ from .models import ParseCurlResponse
 
 _HEADER_RE = re.compile(r"-H\s+(['\"])(.*?)\1")
 _URL_RE = re.compile(r"curl\s+(['\"])(.*?)\1")
+_METHOD_RE = re.compile(r"(?:-X|--request)\s+(['\"])?([A-Za-z]+)\1?")
 
 
 def _extract_header_values(curl: str) -> Dict[str, str]:
@@ -139,6 +140,8 @@ def parse_curl(curl: str) -> ParseCurlResponse:
     url = _extract_url(curl)
     raw_json = _extract_data(curl)
     cookie_from_flag = _extract_cookie(curl)
+    method_match = _METHOD_RE.search(curl)
+    method = method_match.group(2).upper() if method_match else ("POST" if raw_json else "GET")
     backoffice_id = None
 
     if url:
@@ -174,6 +177,7 @@ def parse_curl(curl: str) -> ParseCurlResponse:
 
     return ParseCurlResponse(
         url=url,
+        method=method,
         backofficeId=backoffice_id,
         orgId=org_id,
         branchUuids=branch_uuids,

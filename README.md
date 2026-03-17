@@ -1,4 +1,4 @@
-# Subway Backoffice Local App
+# Alifs Chora Request App
 
 Local internal web app for querying Subway Backoffice GraphQL via a FastAPI proxy and exporting results to CSV.
 
@@ -63,6 +63,14 @@ Open `http://localhost:5173`.
 2. Set a `queryTemplate` or `rawJsonBody`.
 3. Add `mappingJson` to map columns to paths (e.g. `OrderProducts[0].Name`).
 4. Enter `csvSchema` if you need a strict column order.
+
+## Custom cURL / HTTP Export
+
+- Use the `Custom HTTP / cURL` request type for arbitrary JSON endpoints.
+- Paste a full cURL, click `Parse curl`, then review the URL, method, headers, and body.
+- Optionally set `responsePath` when the rows live inside a nested property such as `data.items`.
+- Nested JSON is flattened automatically for CSV export.
+- The same placeholders work in custom mode: `{{ORG_ID}}`, `{{BRANCH_UUID}}`, `{{PAGE_NUMBER}}`, `{{PAGE_SIZE}}`, `{{START_DATE}}`, `{{END_DATE}}`.
 
 ## Example Files
 
