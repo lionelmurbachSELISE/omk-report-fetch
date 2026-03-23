@@ -3,10 +3,20 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginPage } from "./auth/LoginPage";
+import { ActivatePage } from "./auth/ActivatePage";
 import "./styles.css";
 
 function Root() {
   const { isAuthenticated } = useAuth();
+
+  const params = new URLSearchParams(window.location.search);
+  const activationCode = params.get("code");
+  const isActivatePath = window.location.pathname === "/activate";
+
+  if (isActivatePath && activationCode) {
+    return <ActivatePage code={activationCode} />;
+  }
+
   return isAuthenticated ? <App /> : <LoginPage />;
 }
 

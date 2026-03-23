@@ -89,3 +89,7 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
 export async function logout(refreshToken: string): Promise<void> {
   await blocksPost("/idp/v1/Authentication/Logout", { refreshToken }).catch(() => {});
 }
+
+export async function activateAccount(code: string, password: string): Promise<void> {
+  await blocksPost("/idp/v1/Iam/Activate", { code, password });
+}
