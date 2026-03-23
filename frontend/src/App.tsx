@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { postCsv, postJson } from "./utils/api";
 import { clearLocal, loadLocal, saveLocal } from "./utils/storage";
+import { useAuth } from "./auth/AuthContext";
 
 const INTERNAL_MAX_PAGES = 200;
 const BACKOFFICE_OPTIONS = [
@@ -274,6 +275,7 @@ function safeJsonParse(value: string): Record<string, unknown> | undefined {
 }
 
 function App() {
+  const { user, logout } = useAuth();
   const defaults = defaultDateRange();
   const [cookie, setCookie] = useState("");
   const [saveCookie, setSaveCookie] = useState(false);
@@ -661,11 +663,13 @@ function App() {
           <p>Query GraphQL via FastAPI proxy and export CSV.</p>
         </div>
         <div className="header-actions">
+          {user && <span className="header-user">{user.email}</span>}
           <button className="secondary" onClick={clearResults}>Clear Results</button>
           <button className="secondary" onClick={cancelRun} disabled={!runLoading}>Cancel</button>
           <button className="primary" onClick={handleRun} disabled={!canRun}>
             {runLoading ? "Running..." : "Run"}
           </button>
+          <button className="ghost" onClick={logout} title="Sign out">Sign out</button>
         </div>
       </header>
 
