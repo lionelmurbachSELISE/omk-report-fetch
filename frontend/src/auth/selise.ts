@@ -37,7 +37,26 @@ async function blocksPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function login(email: string, password: string): Promise<AuthSession> {
-  const data = await blocksPost<{
+  const body = new URLSearchParams();
+  body.append("grant_type", "password");
+  body.append("username", email);
+  body.append("password", password);
+
+  const resp = await fetch(`${BLOCKS_API}/idp/v1/Authentication/Token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "x-blocks-key": X_BLOCKS_KEY,
+    },
+    body,
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.message ?? err?.title ?? `Login failed: ${resp.status}`);
+  }
+
+  const data = await resp.json() as {
     accessToken?: string;
     access_token?: string;
     refreshToken?: string;
@@ -48,11 +67,7 @@ export async function login(email: string, password: string): Promise<AuthSessio
     email?: string;
     name?: string;
     userId?: string;
-  }>("/idp/v1/Authentication/Token", {
-    grant_type: "password",
-    username: email,
-    password,
-  });
+  };
 
   const accessToken = data.accessToken ?? data.access_token ?? "";
   const refreshToken = data.refreshToken ?? data.refresh_token ?? "";
@@ -66,22 +81,34 @@ export async function login(email: string, password: string): Promise<AuthSessio
   return { tokens: { accessToken, refreshToken, expiresIn }, user };
 }
 
-export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
-  const data = await blocksPost<{
+export async function refreshTokens(currentRefreshToken: string): Promise<AuthTokens> {
+  const body = new URLSearchParams();
+  body.append("grant_type", "refresh_token");
+  body.append("refresh_token", currentRefreshToken);
+
+  const resp = await fetch(`${BLOCKS_API}/idp/v1/Authentication/Token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "x-blocks-key": X_BLOCKS_KEY,
+    },
+    body,
+  });
+
+  if (!resp.ok) throw new Error(`Token refresh failed: ${resp.status}`);
+
+  const data = await resp.json() as {
     accessToken?: string;
     access_token?: string;
     refreshToken?: string;
     refresh_token?: string;
     expiresIn?: number;
     expires_in?: number;
-  }>("/idp/v1/Authentication/Token", {
-    grant_type: "refresh_token",
-    refresh_token: refreshToken,
-  });
+  };
 
   return {
     accessToken: data.accessToken ?? data.access_token ?? "",
-    refreshToken: data.refreshToken ?? data.refresh_token ?? refreshToken,
+    refreshToken: data.refreshToken ?? data.refresh_token ?? currentRefreshToken,
     expiresIn: data.expiresIn ?? data.expires_in ?? 3600,
   };
 }
