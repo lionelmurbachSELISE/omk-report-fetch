@@ -1,0 +1,8 @@
+.git
+frontend/node_modules
+frontend/dist
+backend/
+report_fetch/
+.claude/
+.DS_Store
+*.log
