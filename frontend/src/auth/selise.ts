@@ -91,5 +91,11 @@ export async function logout(refreshToken: string): Promise<void> {
 }
 
 export async function activateAccount(code: string, password: string): Promise<void> {
-  await blocksPost("/idp/v1/Iam/Activate", { code, password });
+  await blocksPost("/idp/v1/Iam/Activate", {
+    code,
+    password,
+    captchaCode: "",
+    projectKey: X_BLOCKS_KEY,
+    preventPostEvent: true,
+  });
 }
