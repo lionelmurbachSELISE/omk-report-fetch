@@ -659,7 +659,7 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div>
-          <h1>Alifs Chora Request App</h1>
+          <h1>OMK GraphQL query scripts</h1>
           <p>Query GraphQL via FastAPI proxy and export CSV.</p>
         </div>
         <div className="header-actions">
