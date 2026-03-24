@@ -1,32 +1,52 @@
 import { FormEvent, useState } from "react";
-import { useAuth } from "./AuthContext";
+import { forgotPassword } from "./selise";
 
-export function LoginPage() {
-  const { login } = useAuth();
+export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
+      await forgotPassword(email);
+      setSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (sent) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-header">
+            <h1>Check your email</h1>
+            <p>If an account exists for <strong>{email}</strong>, you'll receive a password reset link shortly.</p>
+          </div>
+          <button
+            className="primary login-submit"
+            style={{ marginTop: "1rem" }}
+            onClick={() => (window.location.href = "/")}
+          >
+            Back to Sign in
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="login-page">
       <div className="login-card">
         <div className="login-header">
-          <h1>Report Fetch</h1>
-          <p>Sign in with your Selise account to continue</p>
+          <h1>Forgot Password</h1>
+          <p>Enter your email and we'll send you a reset link.</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -43,33 +63,15 @@ export function LoginPage() {
             />
           </div>
 
-          <div className="login-field">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <label htmlFor="password">Password</label>
-              <a href="/forgot-password" style={{ fontSize: "0.8rem", color: "var(--color-text-muted, #888)" }}>
-                Forgot password?
-              </a>
-            </div>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-            />
-          </div>
-
           {error && <div className="login-error">{error}</div>}
 
           <button className="primary login-submit" type="submit" disabled={loading}>
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? "Sending…" : "Send Reset Link"}
           </button>
         </form>
 
         <p className="login-footer">
-          Access restricted to authorised users.
+          <a href="/" style={{ color: "inherit" }}>← Back to Sign in</a>
         </p>
       </div>
     </div>

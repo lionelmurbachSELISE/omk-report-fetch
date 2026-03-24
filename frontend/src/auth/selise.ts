@@ -117,6 +117,15 @@ export async function logout(refreshToken: string): Promise<void> {
   await blocksPost("/idp/v1/Authentication/Logout", { refreshToken }).catch(() => {});
 }
 
+export async function forgotPassword(email: string): Promise<void> {
+  await blocksPost("/idp/v1/Iam/ForgotPassword", {
+    email,
+    projectKey: X_BLOCKS_KEY,
+    captchaCode: "",
+    preventPostEvent: true,
+  });
+}
+
 export async function activateAccount(code: string, password: string): Promise<void> {
   await blocksPost("/idp/v1/Iam/Activate", {
     code,

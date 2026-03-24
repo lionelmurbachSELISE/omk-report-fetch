@@ -4,6 +4,7 @@ import App from "./App";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginPage } from "./auth/LoginPage";
 import { ActivatePage } from "./auth/ActivatePage";
+import { ForgotPasswordPage } from "./auth/ForgotPasswordPage";
 import "./styles.css";
 
 function Root() {
@@ -15,6 +16,10 @@ function Root() {
 
   if (isActivatePath && activationCode) {
     return <ActivatePage code={activationCode} />;
+  }
+
+  if (window.location.pathname === "/forgot-password") {
+    return <ForgotPasswordPage />;
   }
 
   return isAuthenticated ? <App /> : <LoginPage />;
