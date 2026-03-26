@@ -28,7 +28,14 @@ export async function postCsv(path: string, body: unknown): Promise<Blob> {
 
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(text || `Request failed: ${resp.status}`);
+    let message = `Request failed: ${resp.status}`;
+    try {
+      const json = JSON.parse(text);
+      message = json?.detail || json?.message || text || message;
+    } catch {
+      message = text || message;
+    }
+    throw new Error(message);
   }
 
   return resp.blob();

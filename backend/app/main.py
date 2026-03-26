@@ -60,6 +60,11 @@ async def run_endpoint(req: RunRequest) -> RunResponse:
 
 @app.post("/api/export-csv")
 async def export_csv(req: RunRequest) -> Response:
-    rows, columns, _errors, _events, _raw_sample = run_request(req)
+    rows, columns, errors, _events, _raw_sample = run_request(req)
+    if not rows and errors:
+        raise HTTPException(
+            status_code=400,
+            detail="Export failed — no rows collected. Errors: " + "; ".join(errors[:5]),
+        )
     csv_bytes = to_csv_bytes(columns, rows)
     return Response(content=csv_bytes, media_type="text/csv")

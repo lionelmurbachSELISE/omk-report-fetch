@@ -628,14 +628,20 @@ function App() {
     const payload = buildRunPayload();
     try {
       const blob = await postCsv("/api/export-csv", payload);
+      if (blob.size === 0) {
+        setRunError("Export returned an empty file. Your session cookie may have expired — refresh it and try again.");
+        return;
+      }
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const filename = `${selectedType.name.replace(/\s+/g, "_").toLowerCase()}_${timestamp}.csv`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = filename;
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e: any) {
       setRunError(e.message || "CSV export failed");
     }
