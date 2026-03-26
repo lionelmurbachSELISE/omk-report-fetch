@@ -15,3 +15,9 @@ frontend/dist/
 .env.*
 .idea/
 .vscode/
+
+# Scaffolded Selise project (separate repo)
+report_fetch/
+
+# Claude Code internal files
+.claude/

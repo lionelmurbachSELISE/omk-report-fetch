@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { postCsv, postJson } from "./utils/api";
 import { clearLocal, loadLocal, saveLocal } from "./utils/storage";
+import { useAuth } from "./auth/AuthContext";
 
 const INTERNAL_MAX_PAGES = 200;
 const BACKOFFICE_OPTIONS = [
@@ -274,6 +275,7 @@ function safeJsonParse(value: string): Record<string, unknown> | undefined {
 }
 
 function App() {
+  const { user, logout } = useAuth();
   const defaults = defaultDateRange();
   const [cookie, setCookie] = useState("");
   const [saveCookie, setSaveCookie] = useState(false);
@@ -626,14 +628,20 @@ function App() {
     const payload = buildRunPayload();
     try {
       const blob = await postCsv("/api/export-csv", payload);
+      if (blob.size === 0) {
+        setRunError("Export returned an empty file. Your session cookie may have expired — refresh it and try again.");
+        return;
+      }
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const filename = `${selectedType.name.replace(/\s+/g, "_").toLowerCase()}_${timestamp}.csv`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = filename;
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e: any) {
       setRunError(e.message || "CSV export failed");
     }
@@ -657,15 +665,17 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div>
-          <h1>Alifs Chora Request App</h1>
+          <h1>OMK GraphQL query scripts</h1>
           <p>Query GraphQL via FastAPI proxy and export CSV.</p>
         </div>
         <div className="header-actions">
+          {user && <span className="header-user">{user.email}</span>}
           <button className="secondary" onClick={clearResults}>Clear Results</button>
           <button className="secondary" onClick={cancelRun} disabled={!runLoading}>Cancel</button>
           <button className="primary" onClick={handleRun} disabled={!canRun}>
             {runLoading ? "Running..." : "Run"}
           </button>
+          <button className="ghost" onClick={logout} title="Sign out">Sign out</button>
         </div>
       </header>
 

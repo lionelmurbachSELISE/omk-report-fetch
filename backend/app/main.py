@@ -13,7 +13,11 @@ app = FastAPI(title="Alifs Chora Request App")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://dbwkit-dvfjf.seliseblocks.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"]
     ,
@@ -56,6 +60,11 @@ async def run_endpoint(req: RunRequest) -> RunResponse:
 
 @app.post("/api/export-csv")
 async def export_csv(req: RunRequest) -> Response:
-    rows, columns, _errors, _events, _raw_sample = run_request(req)
+    rows, columns, errors, _events, _raw_sample = run_request(req)
+    if not rows and errors:
+        raise HTTPException(
+            status_code=400,
+            detail="Export failed — no rows collected. Errors: " + "; ".join(errors[:5]),
+        )
     csv_bytes = to_csv_bytes(columns, rows)
     return Response(content=csv_bytes, media_type="text/csv")
