@@ -1,4 +1,4 @@
-export const API_BASE = "http://127.0.0.1:8000";
+export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
   const resp = await fetch(`${API_BASE}${path}`, {
@@ -17,7 +17,13 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
   return resp.json() as Promise<T>;
 }
 
-export async function postCsv(path: string, body: unknown): Promise<Blob> {
+export interface CsvResult {
+  blob: Blob;
+  partialErrors: string | null;
+  errorCount: number;
+}
+
+export async function postCsv(path: string, body: unknown): Promise<CsvResult> {
   const resp = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: {
@@ -38,5 +44,8 @@ export async function postCsv(path: string, body: unknown): Promise<Blob> {
     throw new Error(message);
   }
 
-  return resp.blob();
+  const blob = await resp.blob();
+  const partialErrors = resp.headers.get("X-Export-Errors");
+  const errorCount = parseInt(resp.headers.get("X-Export-Error-Count") || "0", 10);
+  return { blob, partialErrors, errorCount };
 }

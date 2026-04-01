@@ -627,7 +627,7 @@ function App() {
     setRunError("");
     const payload = buildRunPayload();
     try {
-      const blob = await postCsv("/api/export-csv", payload);
+      const { blob, partialErrors, errorCount } = await postCsv("/api/export-csv", payload);
       if (blob.size === 0) {
         setRunError("Export returned an empty file. Your session cookie may have expired — refresh it and try again.");
         return;
@@ -642,6 +642,9 @@ function App() {
       link.click();
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      if (partialErrors) {
+        setRunError(`Downloaded partial results. ${errorCount} branch${errorCount !== 1 ? "es" : ""} failed:\n${partialErrors}`);
+      }
     } catch (e: any) {
       setRunError(e.message || "CSV export failed");
     }
