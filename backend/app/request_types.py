@@ -16,7 +16,7 @@ BACKOFFICES = {
         "name": "Ordermonkey",
         "graphql_url": "https://cms.ordermonkey.com/api/gqlquery/v100/graphql",
         "origin": "https://cms.ordermonkey.com",
-        "referer": "https://cms.ordermonkey.com",
+        "referer": "https://cms.ordermonkey.com/orders_management",
     },
 }
 
@@ -270,8 +270,10 @@ class AllOrdersRequest(RequestType):
 
         query = replace_all(query_template)
 
+        # No modifications — pass query through as-is
+
         return {
-            "operationName": operation_name or "",
+            "operationName": "",
             "variables": variables,
             "query": query,
         }
@@ -405,6 +407,8 @@ class CustomHttpRequest(RequestType):
 REQUEST_TYPES: Dict[str, RequestType] = {
     "refunded_products": RefundedProductsRequest(),
     "all_orders": AllOrdersRequest(),
+    "failed_orders": AllOrdersRequest(),
+    "all_products": AllOrdersRequest(),
     "custom_http": CustomHttpRequest(),
 }
 

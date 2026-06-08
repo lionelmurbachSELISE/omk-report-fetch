@@ -23,7 +23,7 @@ export interface CsvResult {
   errorCount: number;
 }
 
-export async function postCsv(path: string, body: unknown): Promise<CsvResult> {
+export async function postBlob(path: string, body: unknown): Promise<CsvResult> {
   const resp = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: {
@@ -48,4 +48,8 @@ export async function postCsv(path: string, body: unknown): Promise<CsvResult> {
   const partialErrors = resp.headers.get("X-Export-Errors");
   const errorCount = parseInt(resp.headers.get("X-Export-Error-Count") || "0", 10);
   return { blob, partialErrors, errorCount };
+}
+
+export async function postCsv(path: string, body: unknown): Promise<CsvResult> {
+  return postBlob(path, body);
 }

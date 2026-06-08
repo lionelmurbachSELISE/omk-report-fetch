@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Burgermeister",
+    "orgId": "64cbdabb-8473-4110-b99b-862a0dd0d0c5",
+    "email": "admin@example.com",
+    "password": "changeme"
+  },
+  {
+    "name": "Kitchen Reunion",
+    "orgId": "04675bce-b515-4eea-89d0-b74cf0db1bd5",
+    "email": "admin@example.com",
+    "password": "changeme"
+  }
+]

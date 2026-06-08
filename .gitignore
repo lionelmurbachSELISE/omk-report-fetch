@@ -21,3 +21,19 @@ report_fetch/
 
 # Claude Code internal files
 .claude/
+
+# Customer health — contains credentials, never commit
+backend/orgs.json
+backend/health_results.json
+
+# Runtime logs — may contain cookies/JWTs, never commit
+*.log
+
+# Local scratch/test scripts — contain hardcoded credentials
+backend/debug_test.py
+backend/final_test.py
+
+# Generated results / build artifacts
+backend/omk_pay_kpi_results.json
+frontend/tsconfig.tsbuildinfo
+.venv/

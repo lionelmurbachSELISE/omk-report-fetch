@@ -45,6 +45,8 @@ class RunRequest(BaseModel):
     backofficeId: str = "subway"
     orgId: Optional[str] = None
     branchUuids: List[str] = Field(default_factory=list)
+    branchOrgIds: Dict[str, str] = Field(default_factory=dict)
+    branchCookies: Dict[str, str] = Field(default_factory=dict)
     startDate: Optional[str] = None
     endDate: Optional[str] = None
     pageSize: int = 100
@@ -79,3 +81,35 @@ class RunResponse(BaseModel):
 class ExportCsvRequest(BaseModel):
     columns: List[str]
     rows: List[Dict[str, Any]]
+
+
+class CardTypeBreakdown(BaseModel):
+    count: int
+    revenue: float
+    fees: float
+
+
+class OrgKPISummary(BaseModel):
+    organization_id: str
+    total_revenue: float
+    total_fees: float
+    total_profit: float
+    profit_margin_pct: float
+    transaction_count: int
+    card_type_breakdown: Dict[str, CardTypeBreakdown]
+
+
+class OMKPayKPIResults(BaseModel):
+    timestamp: str
+    start_date: str
+    end_date: str
+    total_transactions: int
+    total_organizations: int
+    organizations: Dict[str, OrgKPISummary]
+    errors: List[str] = Field(default_factory=list)
+
+
+class OMKPayKPIRunRequest(BaseModel):
+    start_date: str
+    end_date: str
+    organizations: List[Dict[str, Any]]  # [{org_id, tenant_id, branch_ids, cookie}, ...]
