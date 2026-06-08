@@ -10,8 +10,8 @@ COPY frontend/ .
 # Build-time env vars for Vite
 # VITE_API_BASE is intentionally empty — nginx proxies /api/ to uvicorn internally
 ARG VITE_BLOCKS_API_URL=https://api.seliseblocks.com
-ARG VITE_X_BLOCKS_KEY=Df2bcc056a20948d7b124d1be4c5925e0
-ARG VITE_PROJECT_SLUG=dbwkit
+ARG VITE_X_BLOCKS_KEY=P737dc12f13764f9f952562347c536b81
+ARG VITE_PROJECT_SLUG=pbbyog
 ARG VITE_API_BASE=
 
 ENV VITE_BLOCKS_API_URL=$VITE_BLOCKS_API_URL

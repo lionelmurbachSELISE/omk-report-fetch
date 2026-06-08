@@ -1,0 +1,22 @@
+name: Build (main)
+on:
+  push:
+    branches: [main]
+jobs:
+  cd-job:
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/3_web.yml
+    with:
+      CONTAINER_NAME: 'prod-omk-report-fetch-webclient'
+      NAMESPACE: 'prod-omk-report-fetch'
+      SERVICE_NAME: 'omk-report-fetch'
+      CI_BUILD: 'prod'
+    secrets:
+      SELISE_GITHUB_PAT: ${{ secrets.SELISE_GITHUB_PAT }}
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_AKS_BLOCKS_PROD_CREDENTIALS }}
+      AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_BLOCKS_PROD_CONTAINER_REGISTRY }}
+      ClUSTER_RESOURCE_GROUP: ${{ secrets.ClUSTER_AKS_BLOCKS_PROD_RESOURCE_GROUP }}
+      CLUSTER_NAME: ${{ secrets.AKS_BLOCKS_PROD_CLUSTER }}
+      ACR_RESOURCE_GROUP: ${{ secrets.ClUSTER_AKS_BLOCKS_PROD_RESOURCE_GROUP }}
