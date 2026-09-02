@@ -113,3 +113,15 @@ class OMKPayKPIRunRequest(BaseModel):
     start_date: str
     end_date: str
     organizations: List[Dict[str, Any]]  # [{org_id, tenant_id, branch_ids, cookie}, ...]
+
+
+class VapianoReportRequest(BaseModel):
+    cookie: str
+    orgId: str
+    branchUuid: str
+    startDate: str          # YYYY-MM-DD
+    endDate: str            # YYYY-MM-DD
+    leatCsvText: str
+    influencerSignups: Dict[str, int] = Field(default_factory=dict)
+    locationName: str = "Vapiano"
+    backofficeId: str = "ordermonkey"

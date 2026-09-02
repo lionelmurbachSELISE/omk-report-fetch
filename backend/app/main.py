@@ -8,10 +8,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
-from .accounting_export import build_accounting_workbook
-from .csv_export import to_csv_bytes
+from .accounting_export import build_accounting_workbook, build_young_boys_product_workbook, build_young_boys_match_report, build_young_boys_tcpos_export, build_young_boys_season_dashboard, build_burgermeister_export
+from .csv_export import to_xlsx_bytes_by_branch
 from .curl_parser import parse_curl
 from .customer_health import HealthResults, load_results, run_health_check
 from .models import (
@@ -21,6 +21,7 @@ from .models import (
     RunResponse,
     OMKPayKPIResults,
     OMKPayKPIRunRequest,
+    VapianoReportRequest,
 )
 from .omk_pay_kpi import OMKPayKPIService
 from .service import run_request
@@ -171,6 +172,8 @@ async def run_endpoint(req: RunRequest) -> RunResponse:
 
 @app.post("/api/export-csv")
 async def export_csv(req: RunRequest) -> Response:
+    from .accounting_export import _branch_label
+
     rows, columns, errors, events, _raw_sample = run_request(req)
     any_ok = any(e.status == "ok" for e in events)
     if not rows and errors and not any_ok:
@@ -178,13 +181,22 @@ async def export_csv(req: RunRequest) -> Response:
             status_code=400,
             detail="Export failed — no rows collected. Errors: " + "; ".join(errors[:5]),
         )
-    csv_bytes = to_csv_bytes(columns, rows)
-    headers: dict[str, str] = {}
+    xlsx_bytes = to_xlsx_bytes_by_branch(columns, rows, branch_label_fn=_branch_label)
+    headers: dict[str, str] = {
+        "Content-Disposition": 'attachment; filename="export_by_branch.xlsx"',
+        "Access-Control-Expose-Headers": "Content-Disposition",
+    }
     if errors:
         headers["X-Export-Errors"] = "; ".join(errors[:10])
         headers["X-Export-Error-Count"] = str(len(errors))
-        headers["Access-Control-Expose-Headers"] = "X-Export-Errors, X-Export-Error-Count"
-    return Response(content=csv_bytes, media_type="text/csv", headers=headers)
+        headers["Access-Control-Expose-Headers"] = (
+            "Content-Disposition, X-Export-Errors, X-Export-Error-Count"
+        )
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @app.post("/api/export-accounting-xlsx")
@@ -194,8 +206,11 @@ async def export_accounting_xlsx(req: RunRequest) -> Response:
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
+    from .accounting_export import _org_label
+
+    filename_slug = _org_label(req.orgId).lower().replace(" ", "_")
     headers = {
-        "Content-Disposition": 'attachment; filename="kitchen_reunion_accounting.xlsx"',
+        "Content-Disposition": f'attachment; filename="{filename_slug}_accounting.xlsx"',
         "Access-Control-Expose-Headers": "Content-Disposition",
     }
     if errors:
@@ -209,6 +224,138 @@ async def export_accounting_xlsx(req: RunRequest) -> Response:
         content=workbook_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers,
+    )
+
+
+@app.post("/api/young-boys-tcpos-export")
+async def young_boys_tcpos_export(req: RunRequest) -> Response:
+    try:
+        workbook_bytes, errors, _events = build_young_boys_tcpos_export(req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    headers = {
+        "Content-Disposition": 'attachment; filename="bsc_young_boys_tcpos.xlsx"',
+        "Access-Control-Expose-Headers": "Content-Disposition",
+    }
+    if errors:
+        headers["X-Export-Errors"] = "; ".join(errors[:10])
+        headers["X-Export-Error-Count"] = str(len(errors))
+        headers["Access-Control-Expose-Headers"] = (
+            "Content-Disposition, X-Export-Errors, X-Export-Error-Count"
+        )
+
+    return Response(
+        content=workbook_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
+
+
+@app.post("/api/young-boys-match-report")
+async def young_boys_match_report(req: RunRequest) -> Response:
+    try:
+        workbook_bytes, errors, _events = build_young_boys_match_report(req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    headers = {
+        "Content-Disposition": 'attachment; filename="bsc_young_boys_match_report.xlsx"',
+        "Access-Control-Expose-Headers": "Content-Disposition",
+    }
+    if errors:
+        headers["X-Export-Errors"] = "; ".join(errors[:10])
+        headers["X-Export-Error-Count"] = str(len(errors))
+        headers["Access-Control-Expose-Headers"] = (
+            "Content-Disposition, X-Export-Errors, X-Export-Error-Count"
+        )
+
+    return Response(
+        content=workbook_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
+
+
+@app.post("/api/young-boys-product-export")
+async def young_boys_product_export(req: RunRequest) -> Response:
+    try:
+        workbook_bytes, errors, _events = build_young_boys_product_workbook(req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    headers = {
+        "Content-Disposition": 'attachment; filename="bsc_young_boys_produkte.xlsx"',
+        "Access-Control-Expose-Headers": "Content-Disposition",
+    }
+    if errors:
+        headers["X-Export-Errors"] = "; ".join(errors[:10])
+        headers["X-Export-Error-Count"] = str(len(errors))
+        headers["Access-Control-Expose-Headers"] = (
+            "Content-Disposition, X-Export-Errors, X-Export-Error-Count"
+        )
+
+    return Response(
+        content=workbook_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
+
+
+@app.post("/api/burgermeister-export")
+async def burgermeister_export(req: RunRequest) -> Response:
+    try:
+        xlsx_bytes, partial_errors, events = await asyncio.to_thread(build_burgermeister_export, req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    headers: dict[str, str] = {}
+    if partial_errors:
+        headers["X-Export-Errors"] = "; ".join(partial_errors[:10])
+        headers["X-Export-Error-Count"] = str(len(partial_errors))
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
+
+
+@app.post("/api/young-boys-season-dashboard")
+async def young_boys_season_dashboard(req: RunRequest) -> JSONResponse:
+    try:
+        data = build_young_boys_season_dashboard(req)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return JSONResponse(content=data)
+
+
+@app.post("/api/vapiano-report")
+async def vapiano_report(req: VapianoReportRequest) -> Response:
+    from .vapiano_report import build_vapiano_report
+
+    try:
+        pdf_bytes = await asyncio.to_thread(
+            build_vapiano_report,
+            req.cookie,
+            req.orgId,
+            req.branchUuid,
+            req.startDate,
+            req.endDate,
+            req.leatCsvText,
+            req.influencerSignups,
+            req.locationName,
+            req.backofficeId,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    filename = f"vapiano_kpi_{req.startDate}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
     )
 
 

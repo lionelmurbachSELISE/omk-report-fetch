@@ -3,6 +3,8 @@ import { postBlob, postCsv, postJson } from "./utils/api";
 import { clearLocal, loadLocal, saveLocal } from "./utils/storage";
 import { useAuth } from "./auth/AuthContext";
 import { HealthDashboard } from "./HealthDashboard";
+import { VapianoReport } from "./VapianoReport";
+import { YBSeasonDashboard, type YBDashboardData } from "./YBSeasonDashboard";
 
 type AppView = "tool" | "dashboard" | "omk-pay";
 
@@ -73,12 +75,50 @@ const OH_MY_GREEK_BRANCHES = [
   },
 ] as const;
 
+const LAAX_BRANCHES = [
+  { id: "5d2a98c8dc504b3abebd425dc797e59c", name: "Camino MA" },
+  { id: "9f66bc2e05d54fb6bba79ec20f73d64f", name: "Piazza Cafedeli" },
+  { id: "e6e1779fcfe14b41993768a8e3f31536", name: "Segneshütte" },
+  { id: "2e6398772566478e91f35f46c3561675", name: "Ella" },
+  { id: "4a16b0f8e78c4a59b17e21fc857180ff", name: "Restaurant Ikigai" },
+  { id: "8b998652fb4c475e8b8e7795b6aac013", name: "Burgers" },
+  { id: "9195daaea11f4e46b5dd73caab9ba300", name: "Camino Take Away" },
+] as const;
+
+const PIZZA_NATION_BRANCHES = [
+  { id: "768255ee372b42238e1e39aa3a6832da", name: "Pizza Nation Binz" },
+  { id: "d41818219d6f44ed86daf77d65414c7f", name: "Pizza Nation Rosengasse" },
+] as const;
+
+const VAPIANO_BRANCHES = [
+  { id: "b4ead0e87ce640fabad9ab5af4495e7b", name: "Vapiano" },
+] as const;
+
+const BSC_YOUNG_BOYS_BRANCHES = [
+  { id: "def9d93fb54041d7a706d942cf443eb6", name: "BOX 6 - Pizza" },
+  { id: "6829501dee31430ea7ad0e9fb8262939", name: "BOX 7 - Pommes" },
+  { id: "d98039abca7944b3a62fe9837a560934", name: "BOX 8 - Grill" },
+  { id: "e66ee55df56b410fa17175fc4296d291", name: "BOX 9 - Döner" },
+] as const;
+
+const DADDY_FOOD_BRANCHES = [
+  { id: "0092f944-14d0-4723-9704-2367d60d36ca", name: "Daddy Food" },
+] as const;
+
+const CRUSTOPIA_BRANCHES = [
+  { id: "c7011d48887d44948fd973e7bf119e71", name: "Crustopia KLG" },
+] as const;
+
+const URBAN_RANCH_BRANCHES = [
+  { id: "4a1ded8d40ea40bdb8e901223b417739", name: "Urban Ranch" },
+] as const;
+
 function normalizeBranchId(value: string): string {
   return value.trim().toLowerCase().replace(/-/g, "");
 }
 
 const BRANCH_NAME_BY_ID = new Map(
-  [...BURGERMEISTER_BRANCHES, ...KITCHEN_REUNION_BRANCHES, ...OH_MY_GREEK_BRANCHES].map((branch) => [
+  [...BURGERMEISTER_BRANCHES, ...KITCHEN_REUNION_BRANCHES, ...OH_MY_GREEK_BRANCHES, ...LAAX_BRANCHES, ...PIZZA_NATION_BRANCHES, ...VAPIANO_BRANCHES, ...BSC_YOUNG_BOYS_BRANCHES, ...DADDY_FOOD_BRANCHES, ...CRUSTOPIA_BRANCHES, ...URBAN_RANCH_BRANCHES].map((branch) => [
     normalizeBranchId(branch.id),
     branch.name,
   ])
@@ -119,6 +159,55 @@ const TEMPLATES = [
     branchOrgIds: Object.fromEntries(
       OH_MY_GREEK_BRANCHES.map((branch) => [normalizeBranchId(branch.id), branch.orgId])
     ),
+  },
+  {
+    id: "laax",
+    name: "LAAX",
+    backofficeId: "ordermonkey" as BackofficeId,
+    orgId: "d2723a46-6d95-4a46-ac92-8fbb64cba2ef",
+    branches: LAAX_BRANCHES.map((branch) => normalizeBranchId(branch.id)),
+  },
+  {
+    id: "pizza_nation",
+    name: "Pizza Nation",
+    backofficeId: "ordermonkey" as BackofficeId,
+    orgId: "ba38dceb-4221-455a-8fbe-610c63aa159f",
+    branches: PIZZA_NATION_BRANCHES.map((branch) => normalizeBranchId(branch.id)),
+  },
+  {
+    id: "vapiano",
+    name: "Vapiano",
+    backofficeId: "ordermonkey" as BackofficeId,
+    orgId: "1362514e-5f01-47e2-ac02-4d42e56abe2b",
+    branches: VAPIANO_BRANCHES.map((branch) => normalizeBranchId(branch.id)),
+  },
+  {
+    id: "bsc_young_boys",
+    name: "BSC Young Boys",
+    backofficeId: "ordermonkey" as BackofficeId,
+    orgId: "95e43289-85d5-49dd-8204-afe17c51a3ef",
+    branches: BSC_YOUNG_BOYS_BRANCHES.map((branch) => normalizeBranchId(branch.id)),
+  },
+  {
+    id: "daddy_food",
+    name: "Daddy Food",
+    backofficeId: "ordermonkey" as BackofficeId,
+    orgId: "611ec831-3e8d-44bb-8c16-fbc2bb1793ea",
+    branches: DADDY_FOOD_BRANCHES.map((branch) => normalizeBranchId(branch.id)),
+  },
+  {
+    id: "crustopia",
+    name: "Crustopia KLG",
+    backofficeId: "ordermonkey" as BackofficeId,
+    orgId: "83930a21-48d8-485c-9bcd-6f18b28806c6",
+    branches: CRUSTOPIA_BRANCHES.map((branch) => normalizeBranchId(branch.id)),
+  },
+  {
+    id: "urban_ranch",
+    name: "Urban Ranch",
+    backofficeId: "ordermonkey" as BackofficeId,
+    orgId: "5fd7b623-790c-46a1-8557-416473270123",
+    branches: URBAN_RANCH_BRANCHES.map((branch) => normalizeBranchId(branch.id)),
   },
 ];
 
@@ -183,6 +272,9 @@ const ALL_ORDERS_QUERY_TEMPLATE = `query findData {
       CustomerEmail
       CustomerPhoneNumber
       BranchUUID
+      Device {
+        DeviceType
+      }
       OrderProducts {
         Name
         ProductId
@@ -219,6 +311,7 @@ const ALL_ORDERS_MAPPING_JSON = JSON.stringify(
     CustomerEmail: "CustomerEmail",
     CustomerPhoneNumber: "CustomerPhoneNumber",
     BranchUUID: "BranchUUID",
+    DeviceType: "Device.DeviceType",
     FirstProductName: "OrderProducts[0].Name",
     FirstProductId: "OrderProducts[0].ProductId",
     FirstProductVariation: "OrderProducts[0].ProductVariationName",
@@ -230,7 +323,7 @@ const ALL_ORDERS_MAPPING_JSON = JSON.stringify(
 );
 
 const ALL_ORDERS_CSV_SCHEMA =
-  "ItemId,CreateDate,OrderNumber,ChannelOrderDisplayId,TotalAmount,SubTotal,DiscountAmount,TaxAmount,TipAmount,DeliveryCost,PaymentMethod,PaymentReferenceId,OrderStatus,OrderType,CustomerName,CustomerEmail,CustomerPhoneNumber,BranchUUID,FirstProductName,FirstProductId,FirstProductVariation,FirstProductUnitPrice,FirstProductQuantity";
+  "ItemId,CreateDate,OrderNumber,ChannelOrderDisplayId,TotalAmount,SubTotal,DiscountAmount,TaxAmount,TipAmount,DeliveryCost,PaymentMethod,PaymentReferenceId,OrderStatus,OrderType,DeviceType,CustomerName,CustomerEmail,CustomerPhoneNumber,BranchUUID,FirstProductName,FirstProductId,FirstProductVariation,FirstProductUnitPrice,FirstProductQuantity";
 
 const FAILED_ORDERS_QUERY_TEMPLATE = `query findData {
   PlOrders(Model: {PageNumber: {{PAGE_NUMBER}}, Filter: "{ 'OrganizationId': '{{ORG_ID}}', 'BranchUUID': '{{BRANCH_UUID}}', '$or': [{'OrderStatus': 'Failed'}, {'OrderNote': 'failed'}] ,'CreateDate': {'$lte': ISODate('{{END_DATE}}'), '$gte': ISODate('{{START_DATE}}') }, }", Sort: "{CreateDate: -1}", PageSize: {{PAGE_SIZE}}}) {
@@ -253,6 +346,9 @@ const FAILED_ORDERS_QUERY_TEMPLATE = `query findData {
       CustomerEmail
       CustomerPhoneNumber
       BranchUUID
+      Device {
+        DeviceType
+      }
       OrderProducts {
         Name
         ProductId
@@ -536,6 +632,7 @@ function App() {
   const [runLoading, setRunLoading] = useState(false);
   const [runError, setRunError] = useState("");
   const [runResponse, setRunResponse] = useState<RunResponse | null>(null);
+  const [ybDashboardData, setYbDashboardData] = useState<YBDashboardData | null>(null);
 
   const [tableSearch, setTableSearch] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -910,7 +1007,7 @@ function App() {
         return;
       }
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `${selectedType.name.replace(/\s+/g, "_").toLowerCase()}_${timestamp}.csv`;
+      const filename = `${selectedType.name.replace(/\s+/g, "_").toLowerCase()}_${timestamp}.xlsx`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -937,7 +1034,7 @@ function App() {
         return;
       }
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `kitchen_reunion_accounting_${timestamp}.xlsx`;
+      const filename = `${selectedTemplateId}_accounting_${timestamp}.xlsx`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -954,8 +1051,132 @@ function App() {
     }
   }
 
+  async function handleBurgermeisterExport() {
+    setRunError("");
+    const payload = buildRunPayload();
+    try {
+      const { blob, partialErrors, errorCount } = await postBlob("/api/burgermeister-export", payload);
+      if (blob.size === 0) {
+        setRunError("Burgermeister export returned an empty file.");
+        return;
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `burgermeister_orders_${timestamp}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      if (partialErrors) {
+        setRunError(`Downloaded partial results. ${errorCount} branch${errorCount !== 1 ? "es" : ""} failed:\n${partialErrors}`);
+      }
+    } catch (e: any) {
+      setRunError(e.message || "Burgermeister export failed");
+    }
+  }
+
+  async function handleYoungBoysTcposExport() {
+    setRunError("");
+    const payload = buildRunPayload();
+    try {
+      const { blob, partialErrors, errorCount } = await postBlob("/api/young-boys-tcpos-export", payload);
+      if (blob.size === 0) {
+        setRunError("TCPOS export returned an empty file.");
+        return;
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `young_boys_tcpos_${timestamp}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      if (partialErrors) {
+        setRunError(`TCPOS export: ${errorCount} Fehler:\n${partialErrors}`);
+      }
+    } catch (e: any) {
+      setRunError(e.message || "TCPOS export failed");
+    }
+  }
+
+  async function handleYoungBoysMatchReport() {
+    setRunError("");
+    const payload = buildRunPayload();
+    try {
+      const { blob, partialErrors, errorCount } = await postBlob("/api/young-boys-match-report", payload);
+      if (blob.size === 0) {
+        setRunError("Match Report returned an empty file.");
+        return;
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `young_boys_match_report_${timestamp}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      if (partialErrors) {
+        setRunError(`Downloaded partial results. ${errorCount} branch${errorCount !== 1 ? "es" : ""} failed:\n${partialErrors}`);
+      }
+    } catch (e: any) {
+      setRunError(e.message || "Match Report export failed");
+    }
+  }
+
+  async function handleYoungBoysProductExport() {
+    setRunError("");
+    const payload = buildRunPayload();
+    try {
+      const { blob, partialErrors, errorCount } = await postBlob("/api/young-boys-product-export", payload);
+      if (blob.size === 0) {
+        setRunError("Produkt export returned an empty file.");
+        return;
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `young_boys_produkte_${timestamp}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      if (partialErrors) {
+        setRunError(`Downloaded partial results. ${errorCount} branch${errorCount !== 1 ? "es" : ""} failed:\n${partialErrors}`);
+      }
+    } catch (e: any) {
+      setRunError(e.message || "Produkt XLSX export failed");
+    }
+  }
+
+  async function handleYBSeasonDashboard() {
+    setRunError("");
+    setYbDashboardData(null);
+    setRunLoading(true);
+    const payload = buildRunPayload();
+    try {
+      const data = await postJson("/api/young-boys-season-dashboard", payload) as YBDashboardData;
+      setYbDashboardData(data);
+    } catch (err: unknown) {
+      setRunError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunLoading(false);
+    }
+  }
+
   function clearResults() {
     setRunResponse(null);
+    setYbDashboardData(null);
     setRunError("");
     setTableSearch("");
     setSortKey(null);
@@ -1568,6 +1789,16 @@ function App() {
         )}
       </section>
 
+      {selectedTemplateId === "vapiano" && (
+        <section className="panel">
+          <VapianoReport
+            cookie={cookie}
+            orgId={selectedTemplate?.orgId ?? "1362514e-5f01-47e2-ac02-4d42e56abe2b"}
+            branchUuid="b4ead0e87ce640fabad9ab5af4495e7b"
+          />
+        </section>
+      )}
+
       <section className="panel">
           <div className="row space-between results-toolbar">
           <h2>Results</h2>
@@ -1575,9 +1806,34 @@ function App() {
             <button className="secondary" onClick={handleExportCsv} disabled={!canRun}>
               Export CSV
             </button>
-            {selectedTemplateId === "kitchen_reunion" && (
+            {(selectedTemplateId === "kitchen_reunion" || selectedTemplateId === "laax" || selectedTemplateId === "pizza_nation" || selectedTemplateId === "vapiano" || selectedTemplateId === "bsc_young_boys") && (
               <button className="secondary" onClick={handleExportAccountingXlsx} disabled={!canRun}>
                 Export Accounting XLSX
+              </button>
+            )}
+            {selectedTemplateId === "burgermeister" && (
+              <button className="primary" onClick={handleBurgermeisterExport} disabled={!canRun}>
+                BM Export XLSX
+              </button>
+            )}
+            {selectedTemplateId === "bsc_young_boys" && (
+              <button className="secondary" onClick={handleYoungBoysProductExport} disabled={!canRun}>
+                Produkt Export XLSX
+              </button>
+            )}
+            {selectedTemplateId === "bsc_young_boys" && (
+              <button className="secondary" onClick={handleYoungBoysTcposExport} disabled={!canRun}>
+                TCPOS Export
+              </button>
+            )}
+            {selectedTemplateId === "bsc_young_boys" && (
+              <button className="primary" onClick={handleYoungBoysMatchReport} disabled={!canRun}>
+                Match-Export
+              </button>
+            )}
+            {selectedTemplateId === "bsc_young_boys" && (
+              <button className="secondary" onClick={handleYBSeasonDashboard} disabled={!canRun}>
+                📊 Season Dashboard
               </button>
             )}
             <input
@@ -1587,6 +1843,10 @@ function App() {
             />
           </div>
         </div>
+
+        {ybDashboardData && (
+          <YBSeasonDashboard data={ybDashboardData} />
+        )}
 
         {runResponse && runResponse.rows.length > 0 ? (
           <>
