@@ -972,7 +972,7 @@ function App() {
     abortRef.current = new AbortController();
 
     try {
-      const resp = await fetch("http://127.0.0.1:8000/api/run", {
+      const resp = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1190,7 +1190,7 @@ function App() {
   async function loadOmkKpiResults() {
     setOmkKpiError("");
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/omk-pay/kpi/results");
+      const res = await fetch("/api/omk-pay/kpi/results");
       if (!res.ok) {
         throw new Error(`Failed to load KPI results: ${res.status}`);
       }
@@ -1207,7 +1207,7 @@ function App() {
     setOmkKpiResults(null);
     try {
       const daysBack = Math.floor((new Date(omkKpiEndDate).getTime() - new Date(omkKpiStartDate).getTime()) / (1000 * 60 * 60 * 24)) || 7;
-      const res = await fetch(`http://127.0.0.1:8000/api/omk-pay/kpi/run-auto?days_back=${daysBack}`, {
+      const res = await fetch(`/api/omk-pay/kpi/run-auto?days_back=${daysBack}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -1321,7 +1321,7 @@ function App() {
                 className="ghost"
                 onClick={async () => {
                   try {
-                    const debugRes = await fetch("http://127.0.0.1:8000/api/omk-pay/kpi/debug-settlements", {
+                    const debugRes = await fetch("/api/omk-pay/kpi/debug-settlements", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({

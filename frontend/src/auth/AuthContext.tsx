@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     if (state.refreshToken) {
-      await seliseLogout(state.refreshToken);
+      await seliseLogout(state.refreshToken, state.accessToken ?? undefined);
     }
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     clearAuth();
