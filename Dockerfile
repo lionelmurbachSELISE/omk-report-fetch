@@ -36,10 +36,11 @@ COPY backend/ .
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # nginx + supervisord config
-RUN rm -f /etc/nginx/sites-enabled/default
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && sed -i 's/^\s*user\s\+www-data\s*;//' /etc/nginx/nginx.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY supervisord.conf /etc/supervisor/conf.d/app.conf
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
